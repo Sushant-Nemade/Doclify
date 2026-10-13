@@ -78,6 +78,9 @@ assumes a trusted, user-owned project directory: it is not a sandbox against an
 attacker concurrently replacing directories or source files. File permissions
 use owner-only creation where supported, but Windows ACLs need independent review.
 
+Private artifacts are not pruned automatically. Review and delete unneeded draft
+artifacts/backups yourself, retaining any material needed for rollback or audit.
+
 ## Build and source availability
 
 Run `uv run --frozen --extra dev pytest -q`, `ruff check .`, `ruff format --check .`,
