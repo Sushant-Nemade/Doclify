@@ -27,6 +27,19 @@ Requires Python 3.10 or newer and uv. Local validation uses Python 3.13.
 The distribution is **doclify-portfolio 0.3.0**; the command remains `doclify`.
 This is not the upstream PyPI package and no PyPI publishing is configured.
 
+[Download the verified reference wheel and complete source](https://github.com/Sushant-Nemade/Doclify/releases/tag/v0.3.0-reference).
+The release includes SHA-256 checksums and is a reference prerelease, not
+production certification. Install the wheel without uv in a dedicated environment:
+
+```text
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install PATH_TO_DOWNLOADED_WHEEL
+.venv/Scripts/doclify.exe --help
+```
+
+On Unix, replace `.venv/Scripts/` with `.venv/bin/`. Read the source, license and
+operations documentation before configuring live uploads.
+
 ```text
 git clone https://github.com/Sushant-Nemade/doclify.git
 cd doclify
