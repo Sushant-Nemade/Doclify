@@ -1,39 +1,47 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0,<85"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = true
 
 [project]
-name = "doclify"
-version = "0.2.2"
-description = "AI-powered documentation generator for Python projects"
+name = "doclify-portfolio"
+version = "0.3.0"
+description = "Attributed Doclify derivative with bounded inputs, cached summaries and reviewed publication"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "GNU AFFERO GENERAL PUBLIC LICENSE"}
+license = "AGPL-3.0-only"
+license-files = ["LICENSE", "NOTICE.md"]
 authors = [
   {name = "Hema Kalyan", email = "mhemakalyan@gmail.com"}
 ]
+maintainers = [{name = "Sushant Nemade"}]
 
 dependencies = [
-    "click",
-    "pathspec>=1.0.3",
-    "pyyaml",
-    "rich",
-    "python-dotenv",
-    "groq>=1.1.1"
+    "click>=8.1,<9",
+    "pathspec>=1.0.3,<2",
+    "pyyaml>=6,<7",
+    "rich>=13,<16",
+    "python-dotenv>=1,<2",
+    "groq>=1.1.1,<2",
+    "pydantic>=2.10,<3",
+    "httpx>=0.28,<1"
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=9.0.2",
-    "twine>=6.2.0",
+    "pytest>=9.0.2,<10",
+    "twine>=6.2.0,<8",
+    "build>=1.2,<2",
+    "ruff>=0.17,<0.18",
+    "pip-audit>=2.10,<3"
 ]
 
 [project.urls]
-Repository = "https://github.com/KalyanM45/Doclify"
-Issues = "https://github.com/KalyanM45/Doclify/issues"
+Repository = "https://github.com/Sushant-Nemade/doclify"
+Issues = "https://github.com/Sushant-Nemade/doclify/issues"
+Upstream = "https://github.com/KalyanM45/Doclify"
 
 [project.scripts]
 doclify = "doclify.pipelines.supervisor:cli"
@@ -44,4 +52,15 @@ where = ["."]
 include = ["doclify*"]
 
 [tool.setuptools.package-data]
-"doclify" = ["resources/*.gitignore"]
+"doclify" = ["resources/*.gitignore", "prompts/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

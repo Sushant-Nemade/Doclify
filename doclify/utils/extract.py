@@ -1,64 +1,56 @@
 import json
-from pathlib import Path
-from doclify.utils.logger import get_logger
+import re
 
-# Initialize the logger
-logger = get_logger(__name__)
+from doclify.utils.scanner import validate_source
 
-MAX_FILE_SIZE = 1_000_000 # 1MB
-CHUNK_SIZE_LIMIT = 40_000 # Roughly 10k tokens
+MAX_FILE_SIZE = 256_000
+CHUNK_SIZE_LIMIT = 24_000
+SECRET_PATTERN = re.compile(
+    r"(?:ghp_|github_pat_|gsk_|sk-proj-)[A-Za-z0-9_-]{12,}|-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|(?:api[_-]?key|secret|token|password)\s*[:=]\s*['\"][^'\"\n]{12,}['\"]",
+    re.IGNORECASE,
+)
+
+
+def read_source(file_path: str) -> tuple[str, bytes]:
+    path = validate_source(file_path)
+    with path.open("rb") as handle:
+        raw = handle.read(MAX_FILE_SIZE + 1)
+    if len(raw) > MAX_FILE_SIZE:
+        raise ValueError("Source file exceeds 256 KB")
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeError as error:
+        raise ValueError("Source must be UTF-8 text") from error
+    if "\x00" in content:
+        raise ValueError("Binary source rejected")
+    if path.suffix.lower() == ".ipynb":
+        try:
+            document = json.loads(content)
+            cells = document["cells"]
+            if not isinstance(cells, list):
+                raise ValueError
+            snippets = []
+            for cell in cells:
+                if cell.get("cell_type") in {"code", "markdown"}:
+                    source = cell.get("source", [])
+                    if isinstance(source, list) and all(isinstance(line, str) for line in source):
+                        source = "".join(source)
+                    if not isinstance(source, str):
+                        raise ValueError
+                    snippets.append(source)
+            content = "\n\n".join(snippets)
+        except (ValueError, TypeError, KeyError, AttributeError) as error:
+            raise ValueError("Invalid notebook structure") from error
+    if SECRET_PATTERN.search(content):
+        raise ValueError(
+            "Potential credential found in source; exclude or sanitize it before processing"
+        )
+    return content, raw
+
 
 def extract_file_content(file_path: str) -> list[str]:
-    """
-    Reads and returns the content of the file partitioned into chunks for LLM consumption.
-    """
-    path = Path(file_path)
-    if not path.exists():
-        logger.warning(f"File not found: {file_path}")
-        return [f"File not found: {file_path}"]
-    
-    # Size check
-    try:
-        if path.stat().st_size > MAX_FILE_SIZE:
-            logger.warning(f"Skipping large file: {file_path} ({path.stat().st_size} bytes)")
-            return [f"File too large to process: {file_path}"]
-    except Exception as e:
-        logger.error(f"Error checking size of {file_path}: {e}")
-        return [f"Error checking file size: {file_path}"]
-
-    try:
-        ext = path.suffix.lstrip(".") or "txt"
-        
-        if path.suffix == ".ipynb":
-            with open(path, "r", encoding="utf-8") as f:
-                nb_content = json.load(f)
-            
-            code_lines = []
-            for cell in nb_content.get("cells", []):
-                if cell.get("cell_type") == "code":
-                    source = cell.get("source", [])
-                    if isinstance(source, list):
-                        code_lines.extend(source)
-                        code_lines.append("\n\n")
-                    else:
-                        code_lines.append(source)
-                        code_lines.append("\n\n")
-            
-            content = "".join(code_lines).strip()
-            display_ext = "python"
-        else:
-            content = path.read_text(encoding="utf-8")
-            display_ext = ext
-        
-        logger.info(f"Extraction successful for {file_path}")
-        
-        # Chunk logic
-        if len(content) > CHUNK_SIZE_LIMIT:
-            chunks = [content[i:i+CHUNK_SIZE_LIMIT] for i in range(0, len(content), CHUNK_SIZE_LIMIT)]
-            return [f"File: {file_path} (Part {i+1}/{len(chunks)})\n```{display_ext}\n{chunk}\n```" for i, chunk in enumerate(chunks)]
-        
-        return [f"File: {file_path}\n```{display_ext}\n{content}\n```"]
-        
-    except Exception as e:
-        logger.error(f"Error reading file {file_path}: {e}", exc_info=True)
-        return [f"Error reading file {file_path}: {e}"]
+    content, _ = read_source(file_path)
+    return [
+        content[index : index + CHUNK_SIZE_LIMIT]
+        for index in range(0, max(len(content), 1), CHUNK_SIZE_LIMIT)
+    ]

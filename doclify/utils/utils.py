@@ -1,13 +1,7 @@
-import os
-from pathlib import Path
+from importlib.resources import files
+
 
 def get_prompt(prompt_name: str) -> str:
-    # Assuming prompts are in doclify/prompts and this is doclify/utils/utils.py
-    # We go up one level from utils to doclify, then into prompts
-    current_dir = Path(__file__).parent
-    prompt_path = current_dir.parent / "prompts" / f"{prompt_name}.txt"
-    
-    if prompt_path.exists():
-        return prompt_path.read_text(encoding="utf-8")
-    else:
-        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+    if prompt_name not in {"batch_summary", "final_summary"}:
+        raise ValueError("Unknown prompt name")
+    return files("doclify").joinpath("prompts", f"{prompt_name}.txt").read_text(encoding="utf-8")

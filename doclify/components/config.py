@@ -1,51 +1,55 @@
 import yaml
-from pathlib import Path
-from rich.console import Console
-from doclify.utils.logger import get_logger
+from pydantic import ValidationError
 
-logger = get_logger(__name__)
-console = Console()
+from doclify.schema.schema import ProjectConfig
+from doclify.utils.file_utils import atomic_write, pipeline_lock, project_path
 
-def update_config(model=None):
-    """
-    Updates the doclify.yaml configuration with new LLM settings while preserving order.
-    """
 
-    # 1. Defining Configuration of Yaml File
-    # ----------------------------------------------------------------------------------------------------
-    
-    config_path = Path("doclify.yaml")
-    if not config_path.exists():
-        console.print("[bold red]✖ Error:[/bold red] [blue]doclify.yaml[/blue] not found. Run [bold green]doclify init[/bold green] first.")
-        return
+class UniqueLoader(yaml.SafeLoader):
+    pass
 
-    # 2. Loading and Updating the Yaml File with Given Model
-    # ----------------------------------------------------------------------------------------------------
 
+def unique_mapping(loader, node):
+    result = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=True)
+        if not isinstance(key, str) or key in result:
+            raise ValueError("Configuration has a duplicate or non-string key")
+        result[key] = loader.construct_object(value_node, deep=True)
+    return result
+
+
+UniqueLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, unique_mapping)
+
+
+def load_config() -> ProjectConfig:
+    path = project_path("doclify.yaml")
+    if not path.is_file():
+        raise ValueError("doclify.yaml not found; run doclify init first")
+    if path.stat().st_size > 64_000:
+        raise ValueError("Configuration exceeds 64 KB")
     try:
-        content = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        content = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueLoader)
+        return ProjectConfig.model_validate(content)
+    except (yaml.YAMLError, ValidationError, UnicodeError) as error:
+        raise ValueError(
+            "Invalid doclify.yaml shape or limits; review project, structure and llm settings"
+        ) from error
 
-        # 2.1 Checking the existence of LLM in the Yaml File
-        # ----------------------------------------------------------------------------------------------------
-        
-        if "llm" not in content:
-            content["llm"] = {}
 
-        if model:
-            content["llm"]["model"] = model
+def write_config(config: ProjectConfig) -> None:
+    atomic_write(
+        "doclify.yaml", yaml.safe_dump(config.model_dump(), sort_keys=False, allow_unicode=True)
+    )
 
-        # 3. Writing the Yaml Configuration
-        # ----------------------------------------------------------------------------------------------------
-        with open(config_path, "w", encoding="utf-8") as f:
-            yaml.dump(content, f, default_flow_style=False, sort_keys=False)
-            
-        logger.info(f"Config updated: {content}")
-        
-        # 4. Displaying Success Message
-        # ----------------------------------------------------------------------------------------------------
-        
-        console.print(f"[bold green]✔ Updated[/bold green] [blue]Default Model[/blue] configuration: [cyan]{model}[/cyan]")
 
-    except Exception as e:
-        logger.error(f"Failed to update config: {e}")
-        console.print(f"[bold red]✖ Error:[/bold red] Could not update configuration. {e}")
+def update_config(model=None) -> None:
+    with pipeline_lock():
+        config = load_config()
+        content = config.model_dump()
+        content["llm"]["model"] = model
+        try:
+            updated = ProjectConfig.model_validate(content)
+        except ValidationError as error:
+            raise ValueError("Invalid model identifier") from error
+        write_config(updated)

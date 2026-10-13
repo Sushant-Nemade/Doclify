@@ -1,96 +1,140 @@
+import json
+from functools import wraps
+
 import click
-import shutil
-from rich.console import Console
-from dotenv import load_dotenv
+from pydantic import ValidationError
 
-from doclify.components.init import init_project
 from doclify import __version__
+from doclify.components.init import init_project
 
-console = Console()
 
-# Load environment variables from a .env file if it exists in the current directory
-load_dotenv()
+class SafeGroup(click.Group):
+    def invoke(self, context):
+        try:
+            return super().invoke(context)
+        except ValidationError:
+            raise click.ClickException("Configuration contains invalid fields or limits") from None
+        except ValueError as error:
+            raise click.ClickException(str(error)) from None
+        except (OSError, UnicodeError):
+            raise click.ClickException(
+                "Filesystem operation failed; inspect permissions and preserve existing files"
+            ) from None
 
-@click.group()
+
+def legal_notice(context, parameter, value):
+    if value and not context.resilient_parsing:
+        click.echo(
+            "Doclify by Hema Kalyan. Modified by Sushant Nemade on 2026-10-13.\nGNU AGPLv3; no warranty.\nSource: https://github.com/Sushant-Nemade/doclify\nLicense: https://github.com/Sushant-Nemade/doclify/blob/main/LICENSE"
+        )
+        context.exit()
+
+
+@click.group(cls=SafeGroup)
 @click.version_option(version=__version__)
+@click.option(
+    "--license",
+    is_flag=True,
+    is_eager=True,
+    expose_value=False,
+    callback=legal_notice,
+    help="Show attribution, license and source availability.",
+)
 def cli():
-    """
-    Doclify: AI-powered project documentation generator.
-    
-    Automatically generate, update, and manage your project's 
-    README and codebase documentation using LLMs.
-    """
+    """Generate reviewable project documentation without executing repository code."""
     pass
+
 
 @cli.command()
 def init():
-    """
-    Initialize a new Doclify project and create doclify.yaml.
-    
-    This command scans your current directory (respecting your .gitignore), creates a local
-    caching folder (.doclify/), and generates a doclify.yaml configuration file 
-    which you can manually edit to include or exclude specific files.
-    """
-    init_project()
+    """Discover source files and safely create or refresh doclify.yaml."""
+    config = init_project()
+    click.echo(
+        f"Initialized doclify.yaml with {len(config.structure)} files. Review the manifest before running."
+    )
+
 
 @cli.group(name="set")
 def set_group():
-    """
-    Set configuration settings for Doclify.
-    
-    Use this command group to modify your doclify.yaml configuration 
-    directly from the command line.
-    """
+    """Change validated project configuration."""
     pass
+
 
 @set_group.command("default")
 @click.argument("model")
 def set_default(model):
-    """
-    Set the default LLM model in doclify.yaml.
-    
-    MODEL: The exact Model ID from Groq you wish to use (e.g. 'llama-3.3-70b-versatile').
-    """
+    """Set the default Groq model identifier."""
     from doclify.components.config import update_config
+
     update_config(model=model)
+    click.echo("Default model updated.")
+
+
+def generation_options(command):
+    @wraps(command)
+    def wrapped(*args, offline=False, provider=None, **kwargs):
+        if offline and provider not in {None, "offline"}:
+            raise click.UsageError("--offline conflicts with the selected provider")
+        return command(*args, provider="offline" if offline else provider, **kwargs)
+
+    options = [
+        click.option("--model", help="Override the configured model for this run."),
+        click.option("--provider", type=click.Choice(["groq", "offline"])),
+        click.option(
+            "--offline", is_flag=True, help="Use deterministic structural summaries, not AI."
+        ),
+        click.option(
+            "--dry-run",
+            is_flag=True,
+            help="Preflight inputs and budgets without network calls or writes.",
+        ),
+        click.option(
+            "--allow-upload",
+            is_flag=True,
+            help="Explicitly allow selected source code to be sent to Groq.",
+        ),
+    ]
+    for option in options:
+        wrapped = option(wrapped)
+    return wrapped
+
 
 @cli.command()
-@click.option('--model', help='Temporarily override the LLM model specified in doclify.yaml.')
-@click.option('--provider', help='Temporarily override the LLM provider.')
-def run(model, provider):
-    """
-    Run the complete documentation generation pipeline.
-    
-    This command will read your doclify.yaml file, extract code from all 
-    specified files, generate intelligent AI summaries for each of them, 
-    and compile a massive and professional README.md. 
-    
-    If a README.md already exists, it will be safely backed up to README-prev.md.
-    """
-    from doclify.components.run import run_docs
-    run_docs(model=model, provider=provider)
+@generation_options
+def run(**options):
+    """Summarize stale files and generate a private README draft."""
+    from doclify.pipelines.documentation import run_docs
+
+    click.echo(json.dumps(run_docs(**options), indent=2))
+
 
 @cli.command()
-@click.argument('path', type=click.Path(exists=True), required=True)
-@click.option('--model', help='Temporarily override the LLM model specified in doclify.yaml.')
-@click.option('--provider', help='Temporarily override the LLM provider.')
-def update(path, model, provider):
-    """
-    Update documentation for a specific file or all files.
-    
-    PATH: The specific file or directory to update (e.g. 'src/utils.py'). 
-    Pass '.' to quickly regenerate the README.md from the existing cache without making new API calls.
-    """
-    from doclify.components.update import update_docs
-    update_docs(path, model=model, provider=provider)
+@click.argument("path")
+@generation_options
+def update(path, **options):
+    """Refresh changed manifest files in PATH, then generate a draft; '.' selects all."""
+    from doclify.pipelines.documentation import run_docs
+
+    click.echo(json.dumps(run_docs(target=path, **options), indent=2))
+
+
+@cli.command()
+@click.option("--approve", required=True, help="Full SHA-256 digest of the inspected draft.")
+@click.option(
+    "--replace-readme",
+    is_flag=True,
+    help="Back up and replace README.md instead of writing README.generated.md.",
+)
+def publish(approve, replace_readme):
+    """Publish an explicitly reviewed draft, verifying its digest first."""
+    from doclify.pipelines.documentation import publish_readme
+
+    click.echo(json.dumps(publish_readme(approve, replace_readme=replace_readme), indent=2))
+
 
 @cli.command()
 def models():
-    """
-    List all available models from the Groq API.
-    
-    Displays a real-time, aesthetically formatted table of all currently 
-    available AI models on the Groq network, sorted alphabetically by Developer.
-    """
+    """Explicitly contact Groq to list models; requires a locally configured key."""
     from doclify.components.models import list_models
+
     list_models()

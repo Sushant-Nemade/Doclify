@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 .claude
+.doclify/
+doclify.yaml
+README.generated.md
+
 
 # C extensions
 *.so
