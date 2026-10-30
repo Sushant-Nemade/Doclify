@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "repository": "Sushant-Nemade/Doclify",
+  "source_sha": "aad9f0018fd70e7726ea69ce6fd6792c0b78f752",
+  "berlin_date": "2026-10-30",
+  "run_id": "41093587800",
+  "status": "no-safe-change",
+  "stages": [
+    {
+      "name": "baseline-unit-and-integration",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests"
+      ],
+      "exit_code": 0,
+      "junit": {
+        "cases": 40,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 40
+      },
+      "evidence_sha256": "e6b0f382be01d9d36341ff4aa78eae1b273715285098499129b089fd575758d3"
+    },
+    {
+      "name": "baseline-integration",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_pipeline.py"
+      ],
+      "exit_code": 0,
+      "junit": {
+        "cases": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0,
+        "passed": 11
+      },
+      "evidence_sha256": "f270a94caf9d05f28f9131daf05572cc1c8c754c7f1c046eb12a2dfaf42af720"
+    }
+  ],
+  "model": {
+    "name": "Qwen2.5-Coder-1.5B-Instruct-GGUF",
+    "revision": "f86cb2c1fa58255f8052cc32aeede1b7482d4361",
+    "sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
+    "license": "Apache-2.0",
+    "paid_api_requests": 0
+  },
+  "policy": {
+    "human_merge_required": false,
+    "automatic_production_merge": true,
+    "max_repairs": 2,
+    "max_generation_calls": 7,
+    "per_call_token_limit": 1700,
+    "max_pipeline_seconds": 2700,
+    "independent_ci_required": true
+  },
+  "load": {
+    "repository": "Sushant-Nemade/Doclify",
+    "scope": "Owned local regression journeys; Docker network isolation is enforced by the controller, not this script",
+    "profile": "offline draft, approval and publication",
+    "node": "tests/test_pipeline.py::test_offline_draft_then_reviewed_publication",
+    "requested_workflows": 1000,
+    "observed": 1000,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "concurrency": 1,
+    "duration_seconds": 8.775860459,
+    "cpu_process_seconds": 8.774917535,
+    "journey_p95_ms": 7.000000000000001,
+    "journey_p99_ms": 8.0,
+    "http_request_count": null,
+    "limitations": "Serial repeated regression journeys, NOT simultaneous users/browsers or a production capacity SLA. Test-defined mocks/fixtures remain in effect. HTTP requests are not independently counted.",
+    "passed": true
+  },
+  "planning": {
+    "decision": {
+      "status": "candidate",
+      "summary": "The function does not handle the case where the input dictionary `cache` does not contain the key 'files'. If this key is missing, the function will raise a `KeyError`."
+    },
+    "provenance": {
+      "role": "planning",
+      "engine": "llama.cpp CPU, no-network container",
+      "max_output_tokens": 1700,
+      "model_repository": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+      "model_revision": "f86cb2c1fa58255f8052cc32aeede1b7482d4361",
+      "model_sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
+      "response_sha256": "6fc538cd3dde453cf82cca76a75f61ca410bb7dc99cb91713d898512f52e51c6",
+      "response_bytes": 230
+    }
+  },
+  "author": {
+    "role": "author",
+    "engine": "llama.cpp CPU, no-network container",
+    "max_output_tokens": 1700,
+    "model_repository": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF",
+    "model_revision": "f86cb2c1fa58255f8052cc32aeede1b7482d4361",
+    "model_sha256": "cc324af070c2ecbfd324a30884d2f951a7ff756aba85cb811a6ec436933bb046",
+    "response_sha256": "4ada46f04f242606fb8b870556d463cac20197ad26609ff9e3eae3e5077b0522",
+    "response_bytes": 438
+  },
+  "detail": "The function already handles the case where the input dictionary `cache` does not contain the key 'files'. If this key is missing, the function will raise a `KeyError`.",
+  "duration_seconds": 223.81754898600002,
+  "generated_at_utc": "2026-10-30T16:55:08.776884+00:00",
+  "published_at_utc": "2026-10-30T16:55:41.395093+00:00",
+  "run_url": "https://github.com/Sushant-Nemade/Doclify/actions/runs/41093587800"
+}
